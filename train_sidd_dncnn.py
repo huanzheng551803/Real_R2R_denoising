@@ -110,7 +110,7 @@ def main():
             print('learning rate %f' % current_lr)
 
         for i, (r2r_intput,r2r_output) in enumerate(loader_train, 0):
-            # print(i)
+
             mode = np.random.randint(0,8,1)[0]
             model.train()
             model.zero_grad()

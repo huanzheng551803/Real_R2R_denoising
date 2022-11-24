@@ -1,3 +1,0 @@
-rawpy==0.14.0
-exifread==2.1.2
-colour-demosaicing==0.1.5
