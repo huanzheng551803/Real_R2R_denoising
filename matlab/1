@@ -1,0 +1,15 @@
+nohup matlab -nosplash -nodesktop -nodisplay < demo_denoising.m > ./log_set_gt.txt 2>&1 &
+nohup matlab -nosplash -nodesktop -nodisplay < demo_denoising.m > ./log_set_gt1.txt 2>&1 &
+nohup matlab -nosplash -nodesktop -nodisplay < demo_denoising.m > ./log_set_gt2.txt 2>&1 &
+
+nohup matlab -nosplash -nodesktop -nodisplay < gen_data.m > ./log_gen_data1.txt 2>&1 &
+
+nohup matlab -nosplash -nodesktop -nodisplay < gen_data_test.m > ./log_gen_data_p.txt 2>&1 &
+
+nohup matlab -nosplash -nodesktop -nodisplay < demo_denoising1.m > ./log_set_gt_50.txt 2>&1 &
+
+
+
+nohup matlab -nosplash -nodesktop -nodisplay < demo_denoising_set8.m > ./log_set8_gt.txt 2>&1 &
+
+nohup matlab -nosplash -nodesktop -nodisplay < benchmark_ne.m > ./log_set8_gt1.txt 2>&1 &
