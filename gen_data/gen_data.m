@@ -3,13 +3,15 @@ mkdir('./srgb/')
 % paths: path of raw .MAT Data
 % ne: path of csv file of noise parameters
 
-paths = '../../Data/'
-names = dir ([paths '**/*GT_RAW*.MAT']);
-ne = csvread('/home/huanzheng/Documents/others_work/denoising_data/sidd_train/SIDD_Medium_Raw/noise_level_functions.csv', 1, 1);
+% paths = '../sidd_dataset/'
+paths = '/home/huanzheng/Documents/others_work/denoising_data/sidd_train/SIDD_Medium_Raw/'
+
+names = dir ([paths '/Data/**/*GT_RAW*.MAT']);
+ne = csvread([paths '/noise_level_functions.csv'], 1, 1);
 
 
 length = size(names);
-addpath(genpath(paths))
+addpath(genpath(paths));
 % disp(names)
 for i = 1: length(1)
 
