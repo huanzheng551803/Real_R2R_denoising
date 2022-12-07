@@ -60,15 +60,12 @@ class DnCNN(nn.Module):
 
 
 parser = argparse.ArgumentParser(description="DnCNN")
-parser.add_argument("--preprocess", action='store_true',  help='run prepare_data or not')
-parser.add_argument("--batchSize", type=int, default=64, help="Training batch size")
 parser.add_argument("--num_of_layers", type=int, default=20, help="Number of total layers")
-parser.add_argument("--epochs", type=int, default=4, help="Number of training epochs")
-parser.add_argument("--lr", type=float, default=2e-4, help="Initial learning rate")
 parser.add_argument("--outf", type=str, default="log_sidd", help='path of log files')
 parser.add_argument("--gpu", type=int, default=0, help="gpu number")
-parser.add_argument("--r2r_path", type=str, default='./sidd_dataset/train_patches', help="path of R2R training data")
-parser.add_argument("--val_path", type=str, default='./', help="path of SIDD val data")
+parser.add_argument("--model_path", type=str, default='./experiments/pre_trained.pth', help="path of pre-trained R2R model")
+parser.add_argument("--val_path", type=str, default='./', help="path of SIDD val(test) data")
+parser.add_argument("--phase", type=str, default='validation', help="validation or test for SIDD data")
 opt = parser.parse_args()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -85,41 +82,20 @@ def main():
 
     print('Loading dataset ...\n')
 
-    dataset_train=myDataset(path=opt.r2r_path)
-    loader_train = DataLoader(dataset=dataset_train, num_workers=4, batch_size=opt.batchSize, shuffle=True)
+    # dataset_train=myDataset(path=opt.r2r_path)
+    # loader_train = DataLoader(dataset=dataset_train, num_workers=4, batch_size=opt.batchSize, shuffle=True)
     
-    print("# of training samples: %d\n" % int(len(dataset_train)))
+    # print("# of training samples: %d\n" % int(len(dataset_train)))
     net = DnCNN(image_channels=3, depth=20)
-    net.apply(weights_init_kaiming)
-    criterion = nn.MSELoss(size_average=False)
     device_ids = [0]
     model = nn.DataParallel(net, device_ids=device_ids).cuda()
-    criterion.cuda()
-    # Optimizer
-    optimizer = optim.Adam(model.parameters(), lr=opt.lr)
+    model.load_state_dict(torch.load(opt.model_path))
     # training
     dtype = torch.cuda.FloatTensor
     now = datetime.now()
     print('Start training.....',now.strftime("%H:%M:%S"))
- 
-    for epoch in range(opt.epochs):
-        for i, (r2r_intput,r2r_output) in enumerate(loader_train, 0):
-            r2r_intput = r2r_intput.cuda()
-            r2r_output = r2r_output.cuda()
-            # mode = np.random.randint(0,8,1)[0]
-            mode = 0
-            model.train()
-            model.zero_grad()
-            optimizer.zero_grad()
-            out_train = data_aug(model(data_aug(r2r_intput,mode)),mode)
-            loss = criterion(out_train,r2r_output) / (r2r_intput.size()[0]*2)
-            loss.backward()
-            optimizer.step()
-            now = datetime.now()
-            print("%s [epoch %d][%d/%d] loss: %.4f" %
-                ('R2R',epoch+1, i+1, len(loader_train), loss.item()),now.strftime("%H:%M:%S"))
-
-
+    model.eval()
+    if opt.phase == 'validation':
         var_gt = scio.loadmat(os.path.join(opt.val_path,'ValidationGtBlocksSrgb.mat'))['ValidationGtBlocksSrgb'].astype(np.float32)/255.
         var_noisy = scio.loadmat(os.path.join(opt.val_path,'ValidationNoisyBlocksSrgb.mat'))['ValidationNoisyBlocksSrgb'].astype(np.float32)/255. 
         psnr_val = 0
@@ -128,13 +104,29 @@ def main():
             for k in range(40):
                 for m in range(32):
                     noisy = torch.from_numpy(var_noisy[k,m,:,:,::-1].copy().transpose(2,0,1)).unsqueeze(0).type(dtype)
-                    model.eval()
+                    # model.eval()
                     pred = model(noisy)[0].detach().cpu().numpy()
                     psnr_val = psnr_val+compare_psnr(var_gt[k,m,:,:,::-1].transpose(2,0,1),pred)
-        print('epoch: %d validation: %f' %(epoch,psnr_val/40/32))               
-
-        torch.save(model.state_dict(), (MODEL_PATH+'/net_%d.pth' %(epoch))) 
+        print('validation PSNR: %f' %(psnr_val/40/32))               
         del var_gt,var_noisy                         
+    elif opt.phase =='test':
+        test_noisy = scio.loadmat(os.path.join(opt.val_path,'BenchmarkNoisyBlocksSrgb.mat'))['BenchmarkNoisyBlocksSrgb'].astype(np.float32)/255.
+        with torch.no_grad():
+            test = []
+            for k in range(40):
+                tem_test = []
+                for m in range(32):
+                    noisy = torch.from_numpy(test_noisy[k,m,:,:,::-1].copy().transpose(2,0,1)).unsqueeze(0).type(dtype)
+                    pred = model(noisy)
+                    pred = (np.clip((pred).detach().cpu().numpy(),0,1)*255).astype(np.uint8)
+                    tem_test.append(pred)
+                test.append(np.concatenate(tem_test,axis=0).transpose(0,2,3,1)[np.newaxis])
+            test = np.concatenate(test,axis=0)
+            from scipy.io import savemat
+            test = {'DenoisedBlocksSrgb': test[:,:,:,:,::-1]}
+            os.makedirs('./test_result',exist_ok=True)
+            savemat("./test_result/R2R_sidd_test.mat", test)
+            print('test of SIDD is done, result can be found at ./test_result/R2R_sidd_test.mat')         
 
 if __name__ == "__main__":
     main()
